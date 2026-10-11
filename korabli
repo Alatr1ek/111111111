@@ -1,0 +1,265 @@
+import pygame
+import random
+import sys
+
+# Инициализация Pygame
+pygame.init()
+pygame.font.init()
+
+# Настройки окна и графики
+CELL_SIZE = 40
+BOARD_SIZE = 10
+MARGIN = 50
+WIDTH = BOARD_SIZE * CELL_SIZE * 2 + MARGIN * 3
+HEIGHT = BOARD_SIZE * CELL_SIZE + MARGIN * 2 + 60
+
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Морской Бой — Курсовая работа")
+
+# Цвета
+BG_COLOR = (20, 30, 40)
+GRID_COLOR = (100, 100, 100)
+SHIP_COLOR = (50, 200, 50)  # Зеленый для ваших кораблей
+MISS_COLOR = (150, 150, 150)
+HIT_COLOR = (255, 0, 0)  # Красный для попаданий
+TEXT_COLOR = (255, 255, 255)
+SUNK_TEXT_COLOR = (255, 150, 0)  # Оранжевый цвет для надписи об уничтожении
+
+FONT = pygame.font.SysFont("Arial", 18)
+BIG_FONT = pygame.font.SysFont("Arial", 28)
+
+# Защищенный от багов парсера список кораблей (1x4, 2x3, 3x2, 4x1)
+SHIPS_TO_PLACE = [4] + [3, 3] + [2, 2, 2] + [1, 1, 1, 1]
+
+# Матрицы полей: 0 - пусто, 1 - корабль, 2 - мимо, 3 - попали
+player_grid = [[0 for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
+comp_grid = [[0 for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
+
+# Списки, где будем хранить координаты кораблей
+player_ships_coords = []
+comp_ships_coords = []
+
+# Смещение для правого поля (робота)
+COMP_X_OFFSET = BOARD_SIZE * CELL_SIZE + MARGIN * 2
+
+# Состояния игры
+game_state = "PLACEMENT"
+current_ship_index = 0
+placement_dir = "H"
+
+player_turn = True
+winner_text = ""
+
+# Переменные для текста об уничтожении корабля
+sunk_alert_text = ""
+sunk_alert_timer = 0
+
+# Переменные для ИИ
+ai_targets = []
+
+
+def can_place_ship(grid, start_x, start_y, size, direction):
+    if direction == "H" and start_x + size > BOARD_SIZE:
+        return False
+    if direction == "V" and start_y + size > BOARD_SIZE:
+        return False
+
+    for i in range(size):
+        curr_x = start_x + (i if direction == "H" else 0)
+        curr_y = start_y + (0 if direction == "H" else i)
+
+        for dy in range(-1, 2):
+            for dx in range(-1, 2):
+                nx = curr_x + dx
+                ny = curr_y + dy
+                if 0 <= nx < BOARD_SIZE and 0 <= ny < BOARD_SIZE:
+                    if grid[ny][nx] == 1:
+                        return False
+    return True
+
+
+def auto_place_computer_ships():
+    for size in SHIPS_TO_PLACE:
+        placed = False
+        while not placed:
+            direction = random.choice(["H", "V"])
+            x = random.randint(0, BOARD_SIZE - 1)
+            y = random.randint(0, BOARD_SIZE - 1)
+
+            if can_place_ship(comp_grid, x, y, size, direction):
+                ship_cells = []
+                for i in range(size):
+                    nx = x + (i if direction == "H" else 0)
+                    ny = y + (0 if direction == "H" else i)
+                    comp_grid[ny][nx] = 1
+                    ship_cells.append((nx, ny))
+                comp_ships_coords.append(ship_cells)
+                placed = True
+
+
+def check_if_ship_sunk(grid, ships_list, shot_x, shot_y):
+    global sunk_alert_text, sunk_alert_timer
+    for ship in ships_list:
+        if (shot_x, shot_y) in ship:
+            all_sunk = True
+            for cx, cy in ship:
+                if grid[cy][cx] != 3:
+                    all_sunk = False
+                    break
+
+            if all_sunk:
+                size = len(ship)
+                ship_types = {4: "Четырехпалубный", 3: "Трехпалубный", 2: "Двухпалубный", 1: "Однопалубный"}
+                name = ship_types.get(size, "Корабль")
+
+                if grid == comp_grid:
+                    sunk_alert_text = f"Уничтожен: {name} противника!"
+                else:
+                    sunk_alert_text = f"Внимание! Ваш {name} уничтожен!"
+
+                sunk_alert_timer = 2400
+                return True
+    return False
+
+
+def draw_board(x_offset, grid, show_ships):
+    for y in range(BOARD_SIZE):
+        for x in range(BOARD_SIZE):
+            rect = pygame.Rect(x_offset + x * CELL_SIZE, MARGIN + y * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+            pygame.draw.rect(screen, GRID_COLOR, rect, 1)
+
+            val = grid[y][x]
+            if val == 1 and show_ships:
+                pygame.draw.rect(screen, SHIP_COLOR, rect.inflate(-6, -6))
+            elif val == 2:
+                pygame.draw.circle(screen, MISS_COLOR, rect.center, 5)
+            elif val == 3:
+                pygame.draw.line(screen, HIT_COLOR, rect.topleft, rect.bottomright, 3)
+                pygame.draw.line(screen, HIT_COLOR, rect.topright, rect.bottomleft, 3)
+
+
+def computer_move():
+    global player_turn, game_state, winner_text, ai_targets
+
+    if ai_targets:
+        cx, cy = ai_targets.pop(0)
+    else:
+        while True:
+            cx = random.randint(0, BOARD_SIZE - 1)
+            cy = random.randint(0, BOARD_SIZE - 1)
+            if player_grid[cy][cx] != 2 and player_grid[cy][cx] != 3:
+                break
+
+    if player_grid[cy][cx] == 1:
+        player_grid[cy][cx] = 3
+        check_if_ship_sunk(player_grid, player_ships_coords, cx, cy)
+
+        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            nx, ny = cx + dx, cy + dy
+            if 0 <= nx < BOARD_SIZE and 0 <= ny < BOARD_SIZE:
+                if player_grid[ny][nx] != 2 and player_grid[ny][nx] != 3:
+                    if (nx, ny) not in ai_targets:
+                        ai_targets.append((nx, ny))
+
+        player_alive = any(1 in row for row in player_grid)
+        if not player_alive:
+            game_state = "GAMEOVER"
+            winner_text = "Компьютер победил!"
+        return
+    else:
+        player_grid[cy][cx] = 2
+        player_turn = True
+
+
+auto_place_computer_ships()
+clock = pygame.time.Clock()
+
+while True:
+    screen.fill(BG_COLOR)
+
+    lbl1 = FONT.render("ВАШЕ ПОЛЕ", True, TEXT_COLOR)
+    lbl2 = FONT.render("ПОЛЕ РОБОТА", True, TEXT_COLOR)
+    screen.blit(lbl1, (MARGIN, 20))
+    screen.blit(lbl2, (COMP_X_OFFSET, 20))
+
+    draw_board(MARGIN, player_grid, show_ships=True)
+    draw_board(COMP_X_OFFSET, comp_grid, show_ships=False)
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                placement_dir = "V" if placement_dir == "H" else "H"
+
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            mx, my = pygame.mouse.get_pos()
+
+            if game_state == "PLACEMENT":
+                if MARGIN <= mx < MARGIN + BOARD_SIZE * CELL_SIZE:
+                    if MARGIN <= my < MARGIN + BOARD_SIZE * CELL_SIZE:
+                        gx = (mx - MARGIN) // CELL_SIZE
+                        gy = (my - MARGIN) // CELL_SIZE
+
+                        current_size = SHIPS_TO_PLACE[current_ship_index]
+
+                        if can_place_ship(player_grid, gx, gy, current_size, placement_dir):
+                            ship_cells = []
+                            for i in range(current_size):
+                                nx = gx + (i if placement_dir == "H" else 0)
+                                ny = gy + (0 if placement_dir == "H" else i)
+                                player_grid[ny][nx] = 1
+                                ship_cells.append((nx, ny))
+                            player_ships_coords.append(ship_cells)
+
+                            current_ship_index += 1
+                            if current_ship_index >= len(SHIPS_TO_PLACE):
+                                game_state = "GAMEPLAY"
+
+            elif game_state == "GAMEPLAY" and player_turn:
+                if COMP_X_OFFSET <= mx < COMP_X_OFFSET + BOARD_SIZE * CELL_SIZE:
+                    if MARGIN <= my < MARGIN + BOARD_SIZE * CELL_SIZE:
+                        gx = (mx - COMP_X_OFFSET) // CELL_SIZE
+                        gy = (my - MARGIN) // CELL_SIZE
+
+                        if comp_grid[gy][gx] == 0:
+                            comp_grid[gy][gx] = 2
+                            player_turn = False
+                        elif comp_grid[gy][gx] == 1:
+                            comp_grid[gy][gx] = 3
+                            check_if_ship_sunk(comp_grid, comp_ships_coords, gx, gy)
+
+                            comp_alive = any(1 in row for row in comp_grid)
+                            if not comp_alive:
+                                game_state = "GAMEOVER"
+                                winner_text = "Вы победили!"
+
+    if game_state == "GAMEPLAY" and not player_turn:
+        pygame.time.wait(400)
+        computer_move()
+
+    if sunk_alert_timer > 0:
+        alert_lbl = FONT.render(sunk_alert_text, True, SUNK_TEXT_COLOR)
+        screen.blit(alert_lbl, (WIDTH // 2 - alert_lbl.get_width() // 2, HEIGHT - 55))
+        sunk_alert_timer -= 1
+
+    if game_state == "PLACEMENT":
+        size = SHIPS_TO_PLACE[current_ship_index]
+        dir_text = "Горизонтально" if placement_dir == "H" else "Вертикально"
+        info = FONT.render(f"Ставим корабль: {size} палуб(ы). [Пробел] — повернуть (Сейчас: {dir_text})", True,
+                           TEXT_COLOR)
+        screen.blit(info, (MARGIN, HEIGHT - 30))
+
+    elif game_state == "GAMEPLAY":
+        if sunk_alert_timer <= 0:
+            turn_text = "Ваш ход! Стреляйте по правому полю." if player_turn else "Бот думает..."
+            info = FONT.render(turn_text, True, TEXT_COLOR)
+            screen.blit(info, (WIDTH // 2 - info.get_width() // 2, HEIGHT - 30))
+
+    elif game_state == "GAMEOVER":
+        end_lbl = BIG_FONT.render(winner_text, True, (255, 215, 0))
+        screen.blit(end_lbl, (WIDTH // 2 - end_lbl.get_width() // 2, HEIGHT - 35))
+
+    pygame.display.flip()
