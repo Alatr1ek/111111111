@@ -70,7 +70,7 @@ class CockroachMaze:
         self.is_running = False
         self.start_btn.config(state=tk.NORMAL, text="Старт", bg="#2ecc71")
 
-        # Очищаем холст
+        
         self.canvas.delete("all")
 
 
@@ -88,14 +88,14 @@ class CockroachMaze:
         self.draw_bug()
 
     def start_game(self):
-        """Запуск автоматического поиска по кнопке Старт"""
+        
         if not self.is_running:
             self.is_running = True
             self.start_btn.config(state=tk.DISABLED, text="Ищет...", bg="#7f8c8d")
             self.move_bug()
 
     def draw_maze(self):
-        """Отрисовка блоков стен и финиша"""
+        
         for y in range(HEIGHT):
             for x in range(WIDTH):
                 x1, y1 = x * CELL_SIZE, y * CELL_SIZE
@@ -107,7 +107,7 @@ class CockroachMaze:
                     self.canvas.create_rectangle(x1, y1, x2, y2, fill="#2ecc71", outline="")
 
     def draw_bug(self):
-        """Создание графического объекта таракана"""
+        
         x1 = self.rx * CELL_SIZE + 8
         y1 = self.ry * CELL_SIZE + 8
         x2 = x1 + CELL_SIZE - 16
@@ -115,7 +115,7 @@ class CockroachMaze:
         self.bug_id = self.canvas.create_oval(x1, y1, x2, y2, fill="#d35400", outline="#a04000", width=2)
 
     def leave_trace(self, x, y):
-        """Оставляет точку в клетке, где таракан уже был"""
+        
         cx = x * CELL_SIZE + CELL_SIZE // 2
         cy = y * CELL_SIZE + CELL_SIZE // 2
         radius = 4
@@ -126,38 +126,31 @@ class CockroachMaze:
         self.canvas.tag_raise(self.bug_id)
 
     def get_coords(self, x, y, direction):
-        """Определение следующей клетки по направлению движения"""
+        
         moves = [(0, -1), (1, 0), (0, 1), (-1, 0)]  # Вверх, Вправо, Вниз, Влево
         dx, dy = moves[direction]
         return x + dx, y + dy
 
     def move_bug(self):
-        """Алгоритм 'Правой руки' для автономного перемещения таракана"""
         if not self.is_running:
             return
-
-        # Оставляем след на текущей позиции перед шагом
         self.leave_trace(self.rx, self.ry)
 
-        # Проверка достижения выхода
         if self.rx == self.exit_x and self.ry == self.exit_y:
             self.is_running = False
             cx = WIDTH * CELL_SIZE // 2
             cy = HEIGHT * CELL_SIZE // 2
 
-            # Подложка под текст
             self.canvas.create_rectangle(
                 cx - 160, cy - 30, cx + 160, cy + 30,
                 fill="#2c3e50", outline="#2ecc71", width=2
             )
-            # Текст поверх подложки
             self.canvas.create_text(
                 cx, cy,
                 text="ВЫХОД НАЙДЕН!", fill="#2ecc71", font=("Arial", 26, "bold")
             )
             return
 
-        # Логика правила правой руки
         right_dir = (self.direction + 1) % 4
         rx, ry = self.get_coords(self.rx, self.ry, right_dir)
 
@@ -171,14 +164,14 @@ class CockroachMaze:
             else:
                 self.direction = (self.direction - 1) % 4
 
-        # Сдвигаем таракана на холсте
+    
         x1 = self.rx * CELL_SIZE + 8
         y1 = self.ry * CELL_SIZE + 8
         x2 = (self.rx + 1) * CELL_SIZE - 8
         y2 = (self.ry + 1) * CELL_SIZE - 8
         self.canvas.coords(self.bug_id, x1, y1, x2, y2)
 
-        # Задержка следующего кадра в миллисекундах (120 мс)
+        
         self.after_id = self.root.after(120, self.move_bug)
 
 
