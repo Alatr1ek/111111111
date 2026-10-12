@@ -16,11 +16,11 @@ pygame.display.set_caption("Морской Бой — Курсовая рабо�
 
 BG_COLOR = (20, 30, 40)
 GRID_COLOR = (100, 100, 100)
-SHIP_COLOR = (50, 200, 50)  # Зеленый для ваших кораблей
+SHIP_COLOR = (50, 200, 50)  
 MISS_COLOR = (150, 150, 150)
-HIT_COLOR = (255, 0, 0)  # Красный для попаданий
+HIT_COLOR = (255, 0, 0)  
 TEXT_COLOR = (255, 255, 255)
-SUNK_TEXT_COLOR = (255, 150, 0)  # Оранжевый цвет для надписи об уничтожении
+SUNK_TEXT_COLOR = (255, 150, 0) 
 
 FONT = pygame.font.SysFont("Arial", 18)
 BIG_FONT = pygame.font.SysFont("Arial", 28)
