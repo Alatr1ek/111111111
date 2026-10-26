@@ -16,11 +16,11 @@ pygame.display.set_caption("Морской Бой — Курсовая рабо�
 
 BG_COLOR = (20, 30, 40)
 GRID_COLOR = (100, 100, 100)
-SHIP_COLOR = (50, 200, 50)  
+SHIP_COLOR = (50, 200, 50)
 MISS_COLOR = (150, 150, 150)
-HIT_COLOR = (255, 0, 0)  
+HIT_COLOR = (255, 0, 0)
 TEXT_COLOR = (255, 255, 255)
-SUNK_TEXT_COLOR = (255, 150, 0) 
+SUNK_TEXT_COLOR = (255, 150, 0)
 
 FONT = pygame.font.SysFont("Arial", 18)
 BIG_FONT = pygame.font.SysFont("Arial", 28)
@@ -87,6 +87,25 @@ def auto_place_computer_ships():
                 placed = True
 
 
+def mark_surrounding_cells(grid, ships_list, shot_x, shot_y):
+    """Помечает клетки вокруг потопленного корабля как промах (2)"""
+    for ship in ships_list:
+        if (shot_x, shot_y) in ship:
+            all_sunk = all(grid[cy][cx] == 3 for cx, cy in ship)
+            if not all_sunk:
+                return
+
+            for cx, cy in ship:
+                for dy in range(-1, 2):
+                    for dx in range(-1, 2):
+                        nx = cx + dx
+                        ny = cy + dy
+                        if 0 <= nx < BOARD_SIZE and 0 <= ny < BOARD_SIZE:
+                            if grid[ny][nx] == 0:
+                                grid[ny][nx] = 2
+            return
+
+
 def check_if_ship_sunk(grid, ships_list, shot_x, shot_y):
     global sunk_alert_text, sunk_alert_timer
     for ship in ships_list:
@@ -108,6 +127,7 @@ def check_if_ship_sunk(grid, ships_list, shot_x, shot_y):
                     sunk_alert_text = f"Внимание! Ваш {name} уничтожен!"
 
                 sunk_alert_timer = 2400
+                mark_surrounding_cells(grid, ships_list, shot_x, shot_y)
                 return True
     return False
 
